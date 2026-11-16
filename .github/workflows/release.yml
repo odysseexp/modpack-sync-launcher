@@ -1,17 +1,18 @@
 name: Build & Publish Multiplatform Release (.AppImage, .exe, .dmg ARM64)
 
 on:
-  push:
-    tags:
-      - "v*"
   release:
-    types: [published, created]
+    types: [published]
   workflow_dispatch:
     inputs:
       tag_name:
         description: "Tag da Release (ex: v1.0.0)"
         required: true
         default: "v1.0.0"
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: write
