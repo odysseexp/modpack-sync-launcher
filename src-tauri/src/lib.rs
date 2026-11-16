@@ -69,7 +69,7 @@ pub struct AdminScanResponse {
 
 #[tauri::command]
 fn get_system_info_and_paths(os_override: Option<String>) -> Result<SystemInitPayload, String> {
-    let settings = load_settings_from_disk();
+    let mut settings = load_settings_from_disk();
     let real_os = match std::env::consts::OS {
         "windows" => "windows",
         "macos" => "macos",
@@ -79,6 +79,14 @@ fn get_system_info_and_paths(os_override: Option<String>) -> Result<SystemInitPa
         .as_deref()
         .or(settings.os_theme_override.as_deref())
         .unwrap_or(real_os);
+
+    if effective_os != "linux"
+        && (settings.selected_format == "flatpak" || settings.selected_format == "native")
+    {
+        settings.selected_format = "default".to_string();
+    } else if effective_os == "linux" && settings.selected_format == "default" {
+        settings.selected_format = "flatpak".to_string();
+    }
 
     let launcher_candidates = detect_launcher_paths(effective_os);
 

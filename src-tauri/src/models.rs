@@ -159,9 +159,14 @@ pub struct AppSettings {
 
 impl Default for AppSettings {
     fn default() -> Self {
+        let default_format = if cfg!(target_os = "linux") {
+            "flatpak"
+        } else {
+            "default"
+        };
         Self {
             selected_launcher: "prism".to_string(),
-            selected_format: "flatpak".to_string(),
+            selected_format: default_format.to_string(),
             custom_launcher_path: String::new(),
             target_instance_name: "Servidor Amigos".to_string(),
             linux_theme_style: "gtk".to_string(),
