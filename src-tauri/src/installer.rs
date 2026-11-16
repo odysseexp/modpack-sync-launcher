@@ -703,6 +703,12 @@ pub async fn apply_in_place_updates(
     let client = build_http_client()?;
     let completed = Arc::new(AtomicUsize::new(0));
 
+    let rp_renames: Vec<(String, String)> = candidates
+        .iter()
+        .filter(|c| c.category == ItemCategory::Resourcepacks && c.current_file_name != c.latest_file_name)
+        .map(|c| (c.current_file_name.clone(), c.latest_file_name.clone()))
+        .collect();
+
     let results: Vec<Result<()>> = stream::iter(candidates)
         .map(|cand| {
             let client = client.clone();
@@ -771,6 +777,22 @@ pub async fn apply_in_place_updates(
 
     for r in results {
         r?;
+    }
+
+    // Se algum Resource Pack mudou de nome de arquivo durante a atualização in-place,
+    // atualiza a referência correspondente em `options.txt` para mantê-lo ativo na mesma ordem!
+    if !rp_renames.is_empty() {
+        let opt_path = mc_dir.join("options.txt");
+        if opt_path.is_file() {
+            if let Ok(mut opt_text) = fs::read_to_string(&opt_path) {
+                for (old_name, new_name) in &rp_renames {
+                    let old_ref = format!("file/{}", old_name);
+                    let new_ref = format!("file/{}", new_name);
+                    opt_text = opt_text.replace(&old_ref, &new_ref);
+                }
+                let _ = fs::write(&opt_path, opt_text);
+            }
+        }
     }
 
     let _ = app.emit(
