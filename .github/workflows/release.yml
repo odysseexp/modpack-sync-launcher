@@ -1,0 +1,87 @@
+name: Build & Publish Multiplatform Release (.AppImage, .exe, .dmg ARM64)
+
+on:
+  push:
+    tags:
+      - "v*"
+  release:
+    types: [published, created]
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: "Tag da Release (ex: v1.0.0)"
+        required: true
+        default: "v1.0.0"
+
+permissions:
+  contents: write
+
+jobs:
+  build-tauri:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: ubuntu-22.04
+            args: "--target x86_64-unknown-linux-gnu --bundles appimage"
+            os_label: linux-x86_64
+          - platform: windows-latest
+            args: "--target x86_64-pc-windows-msvc --bundles nsis"
+            os_label: windows-x86_64
+          - platform: macos-latest
+            args: "--target aarch64-apple-darwin --bundles dmg,app"
+            os_label: macos-arm64
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - name: Checkout do Repositório
+        uses: actions/checkout@v4
+
+      - name: Instalar dependências de sistema no Linux (WebKitGTK & AppImage)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            libssl-dev \
+            pkg-config \
+            file \
+            wget
+
+      - name: Configurar Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+
+      - name: Configurar Rust Stable + Target
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin' || '' }}
+
+      - name: Cache Rust / Cargo
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+
+      - name: Instalar dependências do Frontend
+        run: npm install
+
+      - name: Compilar e Anexar Binários na Release do GitHub
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          CURSEFORGE_API_KEY: ${{ secrets.CURSEFORGE_API_KEY }}
+        with:
+          tagName: ${{ github.event.inputs.tag_name || github.ref_name }}
+          releaseName: "Modpack Sync Launcher ${{ github.event.inputs.tag_name || github.ref_name }}"
+          releaseBody: "Instaladores nativos compilados automaticamente via GitHub Actions para Linux (.AppImage), Windows (.exe) e macOS Apple Silicon ARM64 (.dmg)."
+          releaseDraft: false
+          prerelease: false
+          args: ${{ matrix.args }}
