@@ -357,6 +357,94 @@ pub fn extract_zip_bytes(zip_bytes: &[u8], target_dir: &Path) -> Result<()> {
     Ok(())
 }
 
+/// Para o Minecraft Launcher Oficial ("official"):
+/// 1. Baixa automaticamente o JSON de perfil do Fabric Loader em `versions/fabric-loader-<ver>-<mc>/`
+///    para que o usuário não precise rodar o instalador do Fabric manualmente.
+/// 2. Verifica se o `assets/indexes/<id>.json` corresponde ao SHA-1 esperado pela versão do Minecraft;
+///    se estiver truncado/divergente (ex: resquício de snapshot/pre-release que causa o erro
+///    "HTTP server does not seem to support byte ranges. Cannot resume."), substitui pelo arquivo íntegro.
+pub async fn ensure_official_launcher_files(
+    mc_dir: &Path,
+    manifest: &ModpackManifest,
+    client: &reqwest::Client,
+) -> Result<()> {
+    if manifest.loader.name.eq_ignore_ascii_case("fabric") {
+        let version_id = format!(
+            "fabric-loader-{}-{}",
+            manifest.loader.version, manifest.minecraft_version
+        );
+        let ver_dir = mc_dir.join("versions").join(&version_id);
+        let ver_json_path = ver_dir.join(format!("{}.json", version_id));
+        if !ver_json_path.is_file() {
+            let profile_url = format!(
+                "https://meta.fabricmc.net/v2/versions/loader/{}/{}/profile/json",
+                manifest.minecraft_version, manifest.loader.version
+            );
+            if let Ok(resp) = client.get(&profile_url).send().await {
+                if resp.status().is_success() {
+                    if let Ok(bytes) = resp.bytes().await {
+                        let _ = fs::create_dir_all(&ver_dir);
+                        let _ = fs::write(&ver_json_path, &bytes);
+                    }
+                }
+            }
+        }
+    }
+
+    // Verifica integridade do assetIndex (ex: 34.json) caso o JSON da versão base já exista
+    let base_ver_json_path = mc_dir
+        .join("versions")
+        .join(&manifest.minecraft_version)
+        .join(format!("{}.json", manifest.minecraft_version));
+
+    if base_ver_json_path.is_file() {
+        if let Ok(raw) = fs::read_to_string(&base_ver_json_path) {
+            if let Ok(val) = serde_json::from_str::<serde_json::Value>(&raw) {
+                if let Some(asset_idx) = val.get("assetIndex") {
+                    let id = asset_idx.get("id").and_then(|v| v.as_str()).unwrap_or("");
+                    let expected_sha1 = asset_idx
+                        .get("sha1")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("");
+                    let url = asset_idx.get("url").and_then(|v| v.as_str()).unwrap_or("");
+
+                    if !id.is_empty() && !expected_sha1.is_empty() && !url.is_empty() {
+                        let idx_path = mc_dir
+                            .join("assets")
+                            .join("indexes")
+                            .join(format!("{}.json", id));
+
+                        let mut needs_fix = false;
+                        if idx_path.is_file() {
+                            if let Ok(hashes) = compute_file_hashes(&idx_path) {
+                                if !hashes.sha1.eq_ignore_ascii_case(expected_sha1) {
+                                    needs_fix = true;
+                                }
+                            }
+                        }
+
+                        if needs_fix {
+                            let _ = fs::remove_file(&idx_path);
+                            if let Ok(resp) = client.get(url).send().await {
+                                if resp.status().is_success() {
+                                    if let Ok(bytes) = resp.bytes().await {
+                                        if let Some(parent) = idx_path.parent() {
+                                            let _ = fs::create_dir_all(parent);
+                                        }
+                                        let _ = fs::write(&idx_path, &bytes);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
 /// Sincroniza e instala o Modpack completo no diretório do usuário:
 /// 1. Configura a instância no Launcher selecionado
 /// 2. Remove mods/resourcepacks/shaderpacks antigos que saíram do manifesto
@@ -372,6 +460,11 @@ pub async fn sync_and_install_modpack(
 ) -> Result<String> {
     let base_dir = PathBuf::from(base_launcher_path);
     let mc_dir = configure_launcher_instance(launcher_id, &base_dir, instance_name, manifest)?;
+    let client = build_http_client()?;
+
+    if launcher_id == "official" {
+        let _ = ensure_official_launcher_files(&mc_dir, manifest, &client).await;
+    }
 
     // Garante que as pastas existam
     for cat in [
@@ -449,7 +542,6 @@ pub async fn sync_and_install_modpack(
 
     let total_to_download = to_download.len();
     let completed_counter = Arc::new(AtomicUsize::new(0));
-    let client = build_http_client()?;
 
     // 3. Downloads paralelos (até 6 conexões simultâneas)
     let results: Vec<Result<()>> = stream::iter(to_download)
