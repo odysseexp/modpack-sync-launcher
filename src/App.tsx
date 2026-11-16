@@ -1509,7 +1509,7 @@ export const App: React.FC = () => {
           )}
 
           {/* =================================================================
-              ABA 3: CONFIGURAÇÕES, CHAVE API CURSEFORGE E SIMULADOR DE TEMAS SO
+              ABA 3: CONFIGURAÇÕES DE TEMAS ADAPTATIVOS POR SO
              ================================================================= */}
           {activeTab === "settings" && (
             <div className="card">
@@ -1517,162 +1517,108 @@ export const App: React.FC = () => {
                 <div>
                   <div className="card-title">
                     <Layers size={20} color="var(--accent-primary)" />
-                    <span>
-                      Design Adaptativo por Sistema Operacional & API Keys
-                    </span>
+                    <span>Design Adaptativo por Sistema Operacional</span>
                   </div>
                   <p className="card-subtitle" style={{ marginTop: 4 }}>
-                    O aplicativo detecta automaticamente o SO ao iniciar, mas
-                    você pode alternar abaixo para visualizar os temas nativos de
-                    Windows 11, Linux GTK4/Libadwaita, Linux KDE Breeze e macOS
-                    ARM64.
+                    O aplicativo detecta automaticamente o seu sistema
+                    operacional ao iniciar, mas você pode alternar o estilo
+                    visual abaixo (por exemplo, entre GTK4/GNOME e Qt/KDE Breeze
+                    no Linux).
                   </p>
                 </div>
               </div>
 
-              <div className="grid-2" style={{ marginTop: 12 }}>
+              <div
+                style={{
+                  marginTop: 12,
+                  padding: 14,
+                  background: "var(--bg-input)",
+                  borderRadius: "var(--radius-control)",
+                  border: "1px solid var(--border-subtle)",
+                }}
+              >
                 <div
                   style={{
-                    padding: 14,
-                    background: "var(--bg-input)",
-                    borderRadius: "var(--radius-control)",
-                    border: "1px solid var(--border-subtle)",
+                    fontWeight: 700,
+                    fontSize: "0.86rem",
+                    marginBottom: 10,
                   }}
                 >
-                  <div
-                    style={{
-                      fontWeight: 700,
-                      fontSize: "0.86rem",
-                      marginBottom: 10,
-                    }}
-                  >
-                    Tema do Sistema Operacional (Auto-Detectado:{" "}
-                    {detectedOs.toUpperCase()})
-                  </div>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                    <button
-                      type="button"
-                      className={`btn ${
-                        settings.os_theme_override === null ? "btn-primary" : ""
-                      }`}
-                      onClick={() =>
-                        handleUpdateSettings({ os_theme_override: null })
-                      }
-                    >
-                      Automático ({detectedOs})
-                    </button>
-                    <button
-                      type="button"
-                      className={`btn ${
-                        settings.os_theme_override === "windows"
-                          ? "btn-primary"
-                          : ""
-                      }`}
-                      onClick={() =>
-                        handleUpdateSettings({ os_theme_override: "windows" })
-                      }
-                    >
-                      Windows 11 Fluent
-                    </button>
-                    <button
-                      type="button"
-                      className={`btn ${
-                        settings.os_theme_override === "linux" &&
-                        settings.linux_theme_style === "gtk"
-                          ? "btn-primary"
-                          : ""
-                      }`}
-                      onClick={() =>
-                        handleUpdateSettings({
-                          os_theme_override: "linux",
-                          linux_theme_style: "gtk",
-                        })
-                      }
-                    >
-                      Linux GTK4 / Libadwaita
-                    </button>
-                    <button
-                      type="button"
-                      className={`btn ${
-                        settings.os_theme_override === "linux" &&
-                        settings.linux_theme_style === "kde"
-                          ? "btn-primary"
-                          : ""
-                      }`}
-                      onClick={() =>
-                        handleUpdateSettings({
-                          os_theme_override: "linux",
-                          linux_theme_style: "kde",
-                        })
-                      }
-                    >
-                      Linux Qt / KDE Breeze
-                    </button>
-                    <button
-                      type="button"
-                      className={`btn ${
-                        settings.os_theme_override === "macos"
-                          ? "btn-primary"
-                          : ""
-                      }`}
-                      onClick={() =>
-                        handleUpdateSettings({ os_theme_override: "macos" })
-                      }
-                    >
-                      macOS ARM64 Aqua
-                    </button>
-                  </div>
+                  Tema do Sistema Operacional (Auto-Detectado:{" "}
+                  {detectedOs.toUpperCase()})
                 </div>
-
-                <div
-                  style={{
-                    padding: 14,
-                    background: "var(--bg-input)",
-                    borderRadius: "var(--radius-control)",
-                    border: "1px solid var(--border-subtle)",
-                  }}
-                >
-                  <div
-                    style={{
-                      fontWeight: 700,
-                      fontSize: "0.86rem",
-                      marginBottom: 8,
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 6,
-                    }}
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                  <button
+                    type="button"
+                    className={`btn ${
+                      settings.os_theme_override === null ? "btn-primary" : ""
+                    }`}
+                    onClick={() =>
+                      handleUpdateSettings({ os_theme_override: null })
+                    }
                   >
-                    <KeyRound size={16} color="var(--accent-primary)" />
-                    <span>
-                      Chave de API Oficial do CurseForge (Pré-configurada)
-                    </span>
-                  </div>
-                  <input
-                    type="text"
-                    className="input-field"
-                    value={settings.curseforge_api_key}
-                    onChange={(e) =>
+                    Automático ({detectedOs})
+                  </button>
+                  <button
+                    type="button"
+                    className={`btn ${
+                      settings.os_theme_override === "windows"
+                        ? "btn-primary"
+                        : ""
+                    }`}
+                    onClick={() =>
+                      handleUpdateSettings({ os_theme_override: "windows" })
+                    }
+                  >
+                    Windows 11 Fluent
+                  </button>
+                  <button
+                    type="button"
+                    className={`btn ${
+                      settings.os_theme_override === "linux" &&
+                      settings.linux_theme_style === "gtk"
+                        ? "btn-primary"
+                        : ""
+                    }`}
+                    onClick={() =>
                       handleUpdateSettings({
-                        curseforge_api_key: e.target.value,
+                        os_theme_override: "linux",
+                        linux_theme_style: "gtk",
                       })
                     }
-                  />
-                  <div
-                    style={{
-                      fontSize: "0.74rem",
-                      color: "var(--text-secondary)",
-                      marginTop: 6,
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 5,
-                    }}
                   >
-                    <ShieldCheck size={14} color="#4ade80" />
-                    <span>
-                      Usada no header <code>x-api-key</code> para resolver
-                      Murmur2 fingerprints no CurseForge v1.
-                    </span>
-                  </div>
+                    Linux GTK4 / Libadwaita
+                  </button>
+                  <button
+                    type="button"
+                    className={`btn ${
+                      settings.os_theme_override === "linux" &&
+                      settings.linux_theme_style === "kde"
+                        ? "btn-primary"
+                        : ""
+                    }`}
+                    onClick={() =>
+                      handleUpdateSettings({
+                        os_theme_override: "linux",
+                        linux_theme_style: "kde",
+                      })
+                    }
+                  >
+                    Linux Qt / KDE Breeze
+                  </button>
+                  <button
+                    type="button"
+                    className={`btn ${
+                      settings.os_theme_override === "macos"
+                        ? "btn-primary"
+                        : ""
+                    }`}
+                    onClick={() =>
+                      handleUpdateSettings({ os_theme_override: "macos" })
+                    }
+                  >
+                    macOS ARM64 Aqua
+                  </button>
                 </div>
               </div>
             </div>
