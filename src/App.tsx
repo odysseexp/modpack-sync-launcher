@@ -76,9 +76,15 @@ export const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<"client" | "admin" | "settings">(
     "client"
   );
-  // O painel Admin começa OCULTO na versão do cliente!
-  // Desbloqueio secreto para o criador: Ctrl+Shift+A ou 5 cliques no ícone do app
+  // O painel Admin começa OCULTO e BLOQUEADO POR SENHA CRIPTOGRAFADA!
+  // Atalho: Ctrl+Shift+A ou 5 cliques no ícone do app abre o prompt de senha
   const [isAdminUnlocked, setIsAdminUnlocked] = useState<boolean>(false);
+  const [isAdminAuthModalOpen, setIsAdminAuthModalOpen] =
+    useState<boolean>(false);
+  const [adminPasswordInput, setAdminPasswordInput] = useState<string>("");
+  const [verifiedAdminPassword, setVerifiedAdminPassword] =
+    useState<string>("");
+  const [adminAuthError, setAdminAuthError] = useState<string | null>(null);
   const [, setLogoClickCount] = useState<number>(0);
 
   const [detectedOs, setDetectedOs] = useState<"windows" | "linux" | "macos">(
@@ -130,39 +136,64 @@ export const App: React.FC = () => {
     body?: string;
   } | null>(null);
 
-  // Atalho secreto Ctrl+Shift+A para alternar o Modo Criador (Admin)
+  // Atalho secreto Ctrl+Shift+A para abrir o prompt de senha do Modo Criador (Admin)
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "a") {
         e.preventDefault();
-        setIsAdminUnlocked((prev) => {
-          const next = !prev;
-          if (next) {
-            setActiveTab("admin");
-          } else {
-            setActiveTab("client");
-          }
-          return next;
-        });
+        if (isAdminUnlocked) {
+          setIsAdminUnlocked(false);
+          setVerifiedAdminPassword("");
+          setActiveTab("client");
+        } else {
+          setAdminPasswordInput("");
+          setAdminAuthError(null);
+          setIsAdminAuthModalOpen(true);
+        }
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
+  }, [isAdminUnlocked]);
 
   const handleLogoSecretClick = () => {
     setLogoClickCount((prev) => {
       const next = prev + 1;
       if (next >= 5) {
-        setIsAdminUnlocked((u) => {
-          const unlocked = !u;
-          setActiveTab(unlocked ? "admin" : "client");
-          return unlocked;
-        });
+        if (isAdminUnlocked) {
+          setIsAdminUnlocked(false);
+          setVerifiedAdminPassword("");
+          setActiveTab("client");
+        } else {
+          setAdminPasswordInput("");
+          setAdminAuthError(null);
+          setIsAdminAuthModalOpen(true);
+        }
         return 0;
       }
       return next;
     });
+  };
+
+  const handleVerifyAdminPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAdminAuthError(null);
+    try {
+      const ok = await invoke<boolean>("verify_admin_password", {
+        password: adminPasswordInput,
+      });
+      if (ok) {
+        setVerifiedAdminPassword(adminPasswordInput);
+        setAdminPasswordInput("");
+        setIsAdminAuthModalOpen(false);
+        setIsAdminUnlocked(true);
+        setActiveTab("admin");
+      } else {
+        setAdminAuthError("Senha de administrador incorreta.");
+      }
+    } catch (err: any) {
+      setAdminAuthError(typeof err === "string" ? err : err?.message);
+    }
   };
 
   // Calcula o atributo de tema adaptativo
@@ -446,6 +477,7 @@ export const App: React.FC = () => {
         githubRepo: settings.github_repo,
         githubToken: settings.github_token,
         curseforgeApiKey: settings.curseforge_api_key,
+        adminPassword: verifiedAdminPassword,
       });
       setAdminScanResult(res);
       setManifest(res.manifest);
@@ -477,6 +509,7 @@ export const App: React.FC = () => {
           githubRepo: settings.github_repo,
           githubToken: settings.github_token,
           releaseNotes,
+          adminPassword: verifiedAdminPassword,
         }
       );
       setPublishResult(result);
@@ -526,6 +559,61 @@ export const App: React.FC = () => {
         onBrowseCustomFolder={() => handleBrowseFolder("launcher")}
         onConfirm={() => setIsLauncherModalOpen(false)}
       />
+
+      {/* Modal de Senha Criptografada para Desbloquear o Modo Criador (Admin) */}
+      {isAdminAuthModalOpen && (
+        <div className="modal-backdrop">
+          <form
+            className="modal-box"
+            style={{ maxWidth: 420 }}
+            onSubmit={handleVerifyAdminPassword}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <Lock size={20} color="var(--accent-primary)" />
+              <h3 style={{ fontSize: "1.05rem", fontWeight: 700 }}>
+                Acesso Restrito — Modo Criador (Admin)
+              </h3>
+            </div>
+            <p className="card-subtitle">
+              Digite a senha de administrador para desbloquear o painel de
+              publicação de atualizações:
+            </p>
+            <input
+              type="password"
+              className="input-field"
+              placeholder="Senha de administrador..."
+              autoFocus
+              value={adminPasswordInput}
+              onChange={(e) => setAdminPasswordInput(e.target.value)}
+            />
+            {adminAuthError && (
+              <div style={{ color: "#f87171", fontSize: "0.8rem" }}>
+                {adminAuthError}
+              </div>
+            )}
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                gap: 8,
+                marginTop: 4,
+              }}
+            >
+              <button
+                type="button"
+                className="btn"
+                onClick={() => setIsAdminAuthModalOpen(false)}
+              >
+                Cancelar
+              </button>
+              <button type="submit" className="btn btn-primary">
+                <KeyRound size={15} />
+                Desbloquear
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
       {/* Barra Superior Adaptativa por SO */}
       <header className="os-topbar">

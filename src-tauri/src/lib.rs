@@ -17,9 +17,35 @@ use crate::models::{
 };
 use crate::scanner::{compare_manifests, scan_creator_folder};
 use serde::Serialize;
+use sha2::{Digest, Sha512};
 use std::fs;
 use std::path::PathBuf;
 use tauri::AppHandle;
+
+const ADMIN_SALT: &[u8] = b"modpack-sync-launcher-admin-salt-v1:";
+const ADMIN_PASSWORD_HASH_HEX: &str =
+    "0c9dfffd021dd4fa430a982b43af6ef2f21ec90f5390fa4bfe11aae33b0438133290161b5b03b5ed8a4bd486f1314654bf0550ee0e2ba96673d1737db6126286";
+
+pub fn check_admin_password_hash(candidate: &str) -> bool {
+    let mut hasher = Sha512::new();
+    hasher.update(ADMIN_SALT);
+    hasher.update(candidate.as_bytes());
+    let mut digest = hasher.finalize().to_vec();
+
+    for _ in 0..10_000 {
+        let mut h = Sha512::new();
+        h.update(ADMIN_SALT);
+        h.update(&digest);
+        digest = h.finalize().to_vec();
+    }
+
+    hex::encode(digest) == ADMIN_PASSWORD_HASH_HEX
+}
+
+#[tauri::command]
+fn verify_admin_password(password: String) -> bool {
+    check_admin_password_hash(&password)
+}
 
 fn app_config_dir() -> PathBuf {
     let base = dirs::config_dir().unwrap_or_else(|| PathBuf::from("."));
@@ -113,7 +139,12 @@ async fn scan_admin_source(
     github_repo: String,
     github_token: String,
     curseforge_api_key: String,
+    admin_password: String,
 ) -> Result<AdminScanResponse, String> {
+    if !check_admin_password_hash(&admin_password) {
+        return Err("Acesso negado: senha de administrador inválida.".to_string());
+    }
+
     let manifest = scan_creator_folder(
         &source_path,
         &version_tag,
@@ -147,7 +178,12 @@ async fn publish_github_release(
     github_repo: String,
     github_token: String,
     release_notes: String,
+    admin_password: String,
 ) -> Result<PublishReleaseResult, String> {
+    if !check_admin_password_hash(&admin_password) {
+        return Err("Acesso negado: senha de administrador inválida.".to_string());
+    }
+
     let staging_dir = app_config_dir().join("staging");
     let src_dir = PathBuf::from(source_path);
     publish_new_release(
@@ -260,7 +296,6 @@ async fn apply_engine_version_update(
     configure_launcher_instance(&launcher_id, &base_dir, &instance_name, &manifest)
         .map_err(|e| e.to_string())?;
 
-    // Se a pasta fonte do criador também existir localmente, atualiza o mmc-pack.json dela se solicitado
     if let Some(src_str) = admin_source_path {
         let src_dir = PathBuf::from(&src_str);
         if src_dir.exists() {
@@ -301,6 +336,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_system_info_and_paths,
             save_app_settings,
+            verify_admin_password,
             scan_admin_source,
             publish_github_release,
             fetch_remote_manifest,
